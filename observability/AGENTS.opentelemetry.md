@@ -4,8 +4,6 @@ title: OpenTelemetry
 summary: Distributed tracing with OpenTelemetry context propagation.
 category: observability
 requires: [structured-logging]
-section: observability
-section_title: Observability and Operations
 ---
 
 # Observability with OpenTelemetry

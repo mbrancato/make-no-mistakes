@@ -3,8 +3,6 @@ id: health-checks
 title: Health Checks
 summary: Fast, bounded liveness and readiness endpoints.
 category: observability
-section: observability
-section_title: Observability and Operations
 ---
 
 # Observability with Health Checks

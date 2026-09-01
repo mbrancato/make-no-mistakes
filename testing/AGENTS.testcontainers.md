@@ -3,8 +3,6 @@ id: testcontainers
 title: Integration Tests with Testcontainers
 summary: Containerized local dependencies for integration tests.
 category: testing
-section: testing
-section_title: Testing
 requires: [integration-tests]
 ---
 

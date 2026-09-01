@@ -3,8 +3,6 @@ id: clean-layered
 title: Clean, Layered Architecture
 summary: Expectations for clean, layered code structure and runtime behavior.
 category: structure
-section: structure
-section_title: Code Structure and Runtime
 ---
 
 # Layout, Naming, and Dependencies

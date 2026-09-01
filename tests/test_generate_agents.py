@@ -6,12 +6,14 @@ from scripts import generate_agents as generator
 
 
 class GenerateAgentsTests(unittest.TestCase):
-    def write_guide(self, root, identifier, category, requires=""):
+    def write_guide(self, root, identifier, category, requires="", title=None, body=None):
         language = "\nlanguage: go" if category == "language" else ""
         required = f"\nrequires: [{requires}]" if requires else ""
+        guide_title = title or identifier.title()
+        guide_body = body or f"# {guide_title}\n\nBody.\n"
         (root / f"AGENTS.{identifier}.md").write_text(
-            f"---\nid: {identifier}\ntitle: {identifier.title()}\nsummary: {identifier} guide\n"
-            f"category: {category}{language}{required}\n---\n\n# {identifier.title()}\n\nBody.\n",
+            f"---\nid: {identifier}\ntitle: {guide_title}\nsummary: {identifier} guide\n"
+            f"category: {category}{language}{required}\n---\n\n{guide_body}",
             encoding="utf-8",
         )
 
@@ -51,6 +53,43 @@ class GenerateAgentsTests(unittest.TestCase):
                 [guide.id for guide in selected],
                 ["py-async", "py-pytest", "python"],
             )
+
+    def test_renders_category_owned_headings(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.write_guide(
+                root,
+                "architecture",
+                "structure",
+                title="Clean Architecture",
+                body="# Layout\n\n## Dependencies\n",
+            )
+            self.write_guide(
+                root,
+                "test-design",
+                "testing",
+                title="Test Design",
+                body="# Test Design\n\n## Assertions\n",
+            )
+            self.write_guide(
+                root,
+                "logging",
+                "observability",
+                title="Structured Logging",
+                body="# Structured Logging\n\n## Fields\n",
+            )
+            guides = generator.discover_guides(root, root / "AGENTS.md")
+            rendered = generator.render(
+                generator.resolve_selection(guides, ["architecture", "test-design", "logging"]),
+                False,
+            )
+            self.assertIn("## Code Structure and Runtime\n\n### Layout\n\n#### Dependencies", rendered)
+            self.assertIn("## Testing\n\n### Test Design\n\n#### Assertions", rendered)
+            self.assertIn(
+                "## Observability and Operations\n\n### Structured Logging\n\n#### Fields",
+                rendered,
+            )
+            self.assertNotIn("section_title", rendered)
 
     def test_rejects_duplicate_ids_and_missing_language(self):
         with tempfile.TemporaryDirectory() as directory:

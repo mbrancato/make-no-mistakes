@@ -3,8 +3,6 @@ id: test-scenarios
 title: Test Scenarios
 summary: Descriptive, grouped, parameterized test cases.
 category: testing
-section: testing
-section_title: Testing
 ---
 
 # Test Scenarios

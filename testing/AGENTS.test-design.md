@@ -3,8 +3,6 @@ id: test-design
 title: Test Design
 summary: Behavioral tests, coverage, mocks, regressions, and completion checks.
 category: testing
-section: testing
-section_title: Testing
 ---
 
 # Test Design
