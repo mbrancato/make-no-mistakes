@@ -13,6 +13,11 @@ from typing import TypeAlias
 
 CATEGORY_ORDER = ("header", "structure", "process", "testing", "observability", "language")
 VALID_CATEGORIES = set(CATEGORY_ORDER)
+CATEGORY_SECTIONS = {
+    "structure": "Code Structure and Runtime",
+    "testing": "Testing",
+    "observability": "Observability and Operations",
+}
 VERSION = "1"
 FrontMatterValue: TypeAlias = str | list[str]
 
@@ -25,8 +30,6 @@ class Guide:
     category: str
     language: str | None
     requires: tuple[str, ...]
-    section: str | None
-    section_title: str | None
     body: str
     path: Path
 
@@ -81,13 +84,7 @@ def parse_front_matter(path: Path) -> Guide:
     title, summary = data["title"], data["summary"]
     assert isinstance(title, str)
     assert isinstance(summary, str)
-    section, section_title = data.get("section"), data.get("section_title")
-    if section is not None and not isinstance(section, str):
-        raise ValueError(f"{path}: section must be a string")
-    if section_title is not None and not isinstance(section_title, str):
-        raise ValueError(f"{path}: section_title must be a string")
-    return Guide(identifier, title, summary, category, language, tuple(requires), section, section_title,
-                 body.strip(), path)
+    return Guide(identifier, title, summary, category, language, tuple(requires), body.strip(), path)
 
 
 def discover_guides(root: Path, output: Path) -> dict[str, Guide]:
@@ -111,13 +108,6 @@ def discover_guides(root: Path, output: Path) -> dict[str, Guide]:
     missing = sorted({required for guide in guides.values() for required in guide.requires} - guides.keys())
     if missing:
         raise ValueError(f"unknown required guide IDs: {', '.join(missing)}")
-    sections = {}
-    for guide in guides.values():
-        if guide.section:
-            if not guide.section_title:
-                raise ValueError(f"{guide.path}: section requires section_title")
-            if sections.setdefault(guide.section, guide.section_title) != guide.section_title:
-                raise ValueError(f"conflicting titles for section {guide.section!r}")
     return guides
 
 
@@ -227,20 +217,19 @@ def render(guides: list[Guide], provenance: bool) -> str:
     parts.extend([f"# {header.title if header else 'Agent Coding Guide'}"])
     if header:
         parts.extend(["", re.sub(r"^# .+\n+", "", header.body, count=1)])
-    emitted_sections: set[str] = set()
+    emitted_categories: set[str] = set()
     for guide in guides:
         if guide.category == "header":
             continue
-        if guide.section and guide.section not in emitted_sections:
-            section_title = guide.section_title
-            if section_title is None:
-                raise RuntimeError(f"{guide.path}: validated section is missing a title")
+        section_title = CATEGORY_SECTIONS.get(guide.category)
+        if section_title and guide.category not in emitted_categories:
             parts.extend(["", f"## {section_title}"])
-            emitted_sections.add(guide.section)
-        suppress_title = guide.section in {"structure", "testing"}
+            emitted_categories.add(guide.category)
+
+        suppress_title = guide.category in {"structure", "testing"}
         preserve_headings = suppress_title or guide.id == "process"
         body = guide.body if preserve_headings else re.sub(r"^# .+\n+", "", guide.body, count=1)
-        heading_offset = 2 if preserve_headings else 1
+        heading_offset = 2 if preserve_headings or guide.category == "observability" else 1
         body = re.sub(
             r"(?m)^(#{1,%d})(?=\s)" % (6 - heading_offset),
             "#" * heading_offset + r"\1",
@@ -249,7 +238,8 @@ def render(guides: list[Guide], provenance: bool) -> str:
         if suppress_title:
             parts.extend(["", body])
         else:
-            parts.extend(["", f"{'###' if guide.section else '##'} {guide.title}", "", body])
+            title_prefix = "###" if section_title else "##"
+            parts.extend(["", f"{title_prefix} {guide.title}", "", body])
     return "\n".join(parts).rstrip() + "\n"
 
 

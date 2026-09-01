@@ -3,8 +3,6 @@ id: integration-tests
 title: Integration Tests
 summary: Real dependency testing with deterministic local infrastructure.
 category: testing
-section: testing
-section_title: Testing
 requires: [clean-layered]
 ---
 

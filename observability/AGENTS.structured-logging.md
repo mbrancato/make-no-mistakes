@@ -3,8 +3,6 @@ id: structured-logging
 title: Structured Logging
 summary: Opinionated structured logging for actionable, safe diagnostics.
 category: observability
-section: observability
-section_title: Observability and Operations
 ---
 
 # Observability with Structured Logging

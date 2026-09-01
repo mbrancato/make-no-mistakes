@@ -3,8 +3,6 @@ id: openmetrics
 title: OpenMetrics
 summary: Metrics exposed through an OpenMetrics-compatible endpoint.
 category: observability
-section: observability
-section_title: Observability and Operations
 ---
 
 # Observability with OpenMetrics
