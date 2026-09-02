@@ -11,15 +11,25 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TypeAlias
 
-CATEGORY_ORDER = ("header", "structure", "guidance", "process", "testing", "observability", "language")
+CATEGORY_ORDER = (
+    "header",
+    "structure",
+    "process",
+    "support",
+    "guidance",
+    "testing",
+    "observability",
+    "language",
+)
 VALID_CATEGORIES = set(CATEGORY_ORDER)
 CATEGORY_SECTIONS = {
     "guidance": "Shared Guidance",
     "structure": "Code Structure",
+    "support": "Development Support",
     "testing": "Testing",
     "observability": "Observability and Operations",
 }
-CATEGORY_SELECTION = {"structure": "one"}
+CATEGORY_SELECTION = {"structure": "one", "process": "one"}
 REQUIRED_CATEGORIES = {"structure", "process"}
 VERSION = "1"
 FrontMatterValue: TypeAlias = str | list[str]
@@ -224,7 +234,7 @@ def choose_interactively(guides: dict[str, Guide]) -> list[str]:
                          key=guide_sort_key)
         for category in categories
     }
-    preferred_defaults = {"structure": "clean-layered", "process": "process"}
+    preferred_defaults = {"structure": "clean-layered", "process": "tdd"}
     selected = {
         preferred_defaults.get(category, choices[category][0].id)
         if preferred_defaults.get(category) in {guide.id for guide in choices[category]}
@@ -333,8 +343,8 @@ def main() -> int:
             if not sys.stdin.isatty():
                 raise ValueError("use --include when stdin is not interactive")
             requested = choose_interactively(guides)
-        validate_required_selection(guides, requested)
         selected = resolve_selection(guides, requested)
+        validate_required_selection(guides, requested)
         args.output.parent.mkdir(parents=True, exist_ok=True)
         output = render(selected, args.provenance)
         args.output.write_text(output, encoding="utf-8")
