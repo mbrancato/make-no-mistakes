@@ -11,13 +11,16 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TypeAlias
 
-CATEGORY_ORDER = ("header", "structure", "process", "testing", "observability", "language")
+CATEGORY_ORDER = ("header", "structure", "guidance", "process", "testing", "observability", "language")
 VALID_CATEGORIES = set(CATEGORY_ORDER)
 CATEGORY_SECTIONS = {
-    "structure": "Code Structure and Runtime",
+    "guidance": "Shared Guidance",
+    "structure": "Code Structure",
     "testing": "Testing",
     "observability": "Observability and Operations",
 }
+CATEGORY_SELECTION = {"structure": "one"}
+REQUIRED_CATEGORIES = {"structure", "process"}
 VERSION = "1"
 FrontMatterValue: TypeAlias = str | list[str]
 
@@ -30,6 +33,7 @@ class Guide:
     category: str
     language: str | None
     requires: tuple[str, ...]
+    render_mode: str
     body: str
     path: Path
 
@@ -81,10 +85,13 @@ def parse_front_matter(path: Path) -> Guide:
     requires = data.get("requires", [])
     if not isinstance(requires, list) or not all(isinstance(item, str) for item in requires):
         raise ValueError(f"{path}: requires must be a list of guide IDs")
+    render_mode = data.get("render", "auto")
+    if not isinstance(render_mode, str) or render_mode not in {"auto", "body", "guide"}:
+        raise ValueError(f"{path}: render must be one of auto, body, guide")
     title, summary = data["title"], data["summary"]
     assert isinstance(title, str)
     assert isinstance(summary, str)
-    return Guide(identifier, title, summary, category, language, tuple(requires), body.strip(), path)
+    return Guide(identifier, title, summary, category, language, tuple(requires), render_mode, body.strip(), path)
 
 
 def discover_guides(root: Path, output: Path) -> dict[str, Guide]:
@@ -108,7 +115,39 @@ def discover_guides(root: Path, output: Path) -> dict[str, Guide]:
     missing = sorted({required for guide in guides.values() for required in guide.requires} - guides.keys())
     if missing:
         raise ValueError(f"unknown required guide IDs: {', '.join(missing)}")
+    visiting: set[str] = set()
+    visited: set[str] = set()
+
+    def visit(identifier: str, trail: tuple[str, ...] = ()) -> None:
+        if identifier in visiting:
+            cycle = " -> ".join((*trail, identifier))
+            raise ValueError(f"cyclic guide dependency: {cycle}")
+        if identifier in visited:
+            return
+        visiting.add(identifier)
+        for required in guides[identifier].requires:
+            visit(required, (*trail, identifier))
+        visiting.remove(identifier)
+        visited.add(identifier)
+
+    for identifier in guides:
+        visit(identifier)
     return guides
+
+
+def guide_sort_key(guide: Guide) -> tuple[str, ...]:
+    """Return a stable display key, grouping language variants by base language."""
+    if guide.category == "language":
+        language = guide.language or ""
+        base, separator, _ = language.partition("-")
+        return (
+            base.lower(),
+            "0" if not separator else "1",
+            language.lower(),
+            guide.title.lower(),
+            guide.id,
+        )
+    return (guide.title.lower(), guide.id)
 
 
 def resolve_selection(guides: dict[str, Guide], selected: list[str]) -> list[Guide]:
@@ -123,12 +162,37 @@ def resolve_selection(guides: dict[str, Guide], selected: list[str]) -> list[Gui
             for required in guides[dependency_id].requires:
                 add(required)
 
+    headers = [guide.id for guide in guides.values() if guide.category == "header"]
     for selected_id in selected:
         add(selected_id)
-    resolved.update(guide.id for guide in guides.values() if guide.category == "header")
+    resolved.update(headers)
     positions = {category: index for index, category in enumerate(CATEGORY_ORDER)}
-    return sorted((guides[resolved_id] for resolved_id in resolved),
-                  key=lambda guide: (positions[guide.category], guide.title.lower(), guide.id))
+    ordered_ids: list[str] = []
+    visited: set[str] = set()
+
+    def append(identifier: str) -> None:
+        if identifier in visited:
+            return
+        for required in guides[identifier].requires:
+            append(required)
+        visited.add(identifier)
+        ordered_ids.append(identifier)
+
+    roots = sorted((guides[identifier] for identifier in resolved),
+                   key=lambda guide: (positions[guide.category], *guide_sort_key(guide)))
+    for guide in roots:
+        append(guide.id)
+    for category, mode in CATEGORY_SELECTION.items():
+        if mode == "one" and sum(guides[identifier].category == category for identifier in ordered_ids) > 1:
+            raise ValueError(f"category {category!r} allows only one selected guide")
+    return [guides[identifier] for identifier in ordered_ids]
+
+
+def validate_required_selection(guides: dict[str, Guide], selected: list[str]) -> None:
+    missing = sorted(category for category in REQUIRED_CATEGORIES
+                     if not any(guides[identifier].category == category for identifier in selected))
+    if missing:
+        raise ValueError(f"selection requires a guide from: {', '.join(missing)}")
 
 
 def dependents(guides: dict[str, Guide], selected: set[str], identifier: str) -> set[str]:
@@ -145,16 +209,26 @@ def dependents(guides: dict[str, Guide], selected: set[str], identifier: str) ->
     return removed
 
 
+def selection_marker(category: str, selected: bool) -> str:
+    """Return the UI marker for a category's selection mode."""
+    if CATEGORY_SELECTION.get(category, "many") == "one":
+        return "(x)" if selected else "( )"
+    return "[x]" if selected else "[ ]"
+
+
 def choose_interactively(guides: dict[str, Guide]) -> list[str]:
     categories = [category for category in CATEGORY_ORDER if category != "header"]
-    required_categories = {"structure", "process"}
+    required_categories = REQUIRED_CATEGORIES
     choices = {
         category: sorted((guide for guide in guides.values() if guide.category == category),
-                         key=lambda guide: (guide.title.lower(), guide.id))
+                         key=guide_sort_key)
         for category in categories
     }
+    preferred_defaults = {"structure": "clean-layered", "process": "process"}
     selected = {
-        choices[category][0].id
+        preferred_defaults.get(category, choices[category][0].id)
+        if preferred_defaults.get(category) in {guide.id for guide in choices[category]}
+        else choices[category][0].id
         for category in required_categories
         if choices[category]
     }
@@ -170,7 +244,7 @@ def choose_interactively(guides: dict[str, Guide]) -> list[str]:
             window.addnstr(0, 0, f"{category.title()} ({category_index + 1}/{len(categories)}){requirement}", width - 1)
             window.addnstr(1, 0, "Arrows: move  Space: toggle  Enter: next  Backspace: previous  q: cancel", width - 1)
             for index, guide in enumerate(options):
-                marker = "[x]" if guide.id in selected else "[ ]"
+                marker = selection_marker(category, guide.id in selected)
                 prefix = ">" if index == cursor else " "
                 window.addnstr(index + 3, 0, f"{prefix} {marker} {guide.title} - {guide.summary}", width - 1)
             key = window.getch()
@@ -182,7 +256,7 @@ def choose_interactively(guides: dict[str, Guide]) -> list[str]:
                 cursor = (cursor + 1) % len(options)
             elif key == ord(" ") and options:
                 guide = options[cursor]
-                if guide.category in required_categories:
+                if CATEGORY_SELECTION.get(guide.category, "many") == "one":
                     selected.difference_update(
                         option.id for option in choices[guide.category]
                     )
@@ -226,8 +300,10 @@ def render(guides: list[Guide], provenance: bool) -> str:
             parts.extend(["", f"## {section_title}"])
             emitted_categories.add(guide.category)
 
-        suppress_title = guide.category in {"structure", "testing"}
-        preserve_headings = suppress_title or guide.id == "process"
+        render_mode = guide.render_mode
+        if render_mode == "auto":
+            render_mode = "body" if guide.category in {"process", "structure", "testing"} else "guide"
+        preserve_headings = render_mode == "body"
         body = guide.body if preserve_headings else re.sub(r"^# .+\n+", "", guide.body, count=1)
         heading_offset = 2 if preserve_headings or guide.category == "observability" else 1
         body = re.sub(
@@ -235,7 +311,7 @@ def render(guides: list[Guide], provenance: bool) -> str:
             "#" * heading_offset + r"\1",
             body,
         )
-        if suppress_title:
+        if render_mode == "body":
             parts.extend(["", body])
         else:
             title_prefix = "###" if section_title else "##"
@@ -257,9 +333,11 @@ def main() -> int:
             if not sys.stdin.isatty():
                 raise ValueError("use --include when stdin is not interactive")
             requested = choose_interactively(guides)
+        validate_required_selection(guides, requested)
         selected = resolve_selection(guides, requested)
         args.output.parent.mkdir(parents=True, exist_ok=True)
-        args.output.write_text(render(selected, args.provenance), encoding="utf-8")
+        output = render(selected, args.provenance)
+        args.output.write_text(output, encoding="utf-8")
     except KeyboardInterrupt:
         print("Generation cancelled.", file=sys.stderr)
         return 130
