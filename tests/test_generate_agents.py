@@ -140,23 +140,37 @@ class GenerateAgentsTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             self.write_guide(root, "base", "process")
-            self.write_guide(root, "feature", "process", "base")
+            self.write_guide(root, "feature", "testing", "base")
             guides = generator.discover_guides(root, root / "AGENTS.md")
 
             selected = generator.resolve_selection(guides, ["feature"])
 
             self.assertEqual([guide.id for guide in selected], ["base", "feature"])
 
-    def test_allows_multiple_process_guides(self):
+    def test_rejects_multiple_process_guides(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             self.write_guide(root, "first", "process")
             self.write_guide(root, "second", "process")
             guides = generator.discover_guides(root, root / "AGENTS.md")
 
-            selected = generator.resolve_selection(guides, ["first", "second"])
+            with self.assertRaisesRegex(ValueError, "allows only one selected guide"):
+                generator.resolve_selection(guides, ["first", "second"])
 
-            self.assertEqual({guide.id for guide in selected}, {"first", "second"})
+    def test_allows_multiple_development_support_guides(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.write_guide(root, "process", "process")
+            self.write_guide(root, "commands", "support")
+            self.write_guide(root, "pull-request", "support")
+            guides = generator.discover_guides(root, root / "AGENTS.md")
+
+            selected = generator.resolve_selection(guides, ["process", "commands", "pull-request"])
+
+            self.assertEqual(
+                [guide.id for guide in selected],
+                ["process", "commands", "pull-request"],
+            )
 
     def test_allows_multiple_cross_cutting_guides(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -173,9 +187,25 @@ class GenerateAgentsTests(unittest.TestCase):
         self.assertEqual(generator.selection_marker("structure", True), "(x)")
         self.assertEqual(generator.selection_marker("structure", False), "( )")
 
+    def test_orders_structure_process_support_and_guidance(self):
+        self.assertLess(
+            generator.CATEGORY_ORDER.index("structure"),
+            generator.CATEGORY_ORDER.index("process"),
+        )
+        self.assertLess(
+            generator.CATEGORY_ORDER.index("process"),
+            generator.CATEGORY_ORDER.index("support"),
+        )
+        self.assertLess(
+            generator.CATEGORY_ORDER.index("support"),
+            generator.CATEGORY_ORDER.index("guidance"),
+        )
+
     def test_uses_brackets_for_multi_select_categories(self):
         self.assertEqual(generator.selection_marker("guidance", True), "[x]")
         self.assertEqual(generator.selection_marker("guidance", False), "[ ]")
+        self.assertEqual(generator.selection_marker("support", True), "[x]")
+        self.assertEqual(generator.selection_marker("support", False), "[ ]")
 
     def test_rejects_multiple_structure_guides(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -214,6 +244,28 @@ class GenerateAgentsTests(unittest.TestCase):
 
             with self.assertRaisesRegex(ValueError, "requires a guide from: structure"):
                 generator.validate_required_selection(guides, ["process"])
+
+    def test_readme_examples_use_real_guide_ids_and_render(self):
+        root = Path(__file__).parents[1]
+        guides = generator.discover_guides(root, root / "AGENTS.md")
+
+        for requested in (
+            ["tdd", "clean-layered", "go"],
+            ["tdd", "clean-layered", "python", "py-async"],
+        ):
+            selected = generator.resolve_selection(guides, requested)
+            generator.validate_required_selection(guides, requested)
+            self.assertTrue(generator.render(selected, False))
+
+    def test_unknown_ids_are_reported_before_required_selection(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.write_guide(root, "process", "process")
+            self.write_guide(root, "structure", "structure")
+            guides = generator.discover_guides(root, root / "AGENTS.md")
+
+            with self.assertRaisesRegex(ValueError, "unknown guide IDs: missing"):
+                generator.resolve_selection(guides, ["missing"])
 
     def test_supports_explicit_body_rendering_mode(self):
         with tempfile.TemporaryDirectory() as directory:

@@ -2,7 +2,7 @@
 id: pull-request
 title: Pull Request Guidance
 summary: Focused change descriptions, verification reporting, and review-ready handoffs.
-category: process
+category: support
 render: guide
 ---
 

@@ -2,7 +2,7 @@
 id: development-commands
 title: Development Commands
 summary: Setup, development, formatting, testing, and verification commands for the repository.
-category: process
+category: support
 render: guide
 ---
 
