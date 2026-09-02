@@ -3,6 +3,7 @@ id: py-pytest
 title: Python pytest Named Test Scenarios
 summary: Named Python test scenarios with pytest parameter IDs.
 category: language
+render: guide
 language: python-pytest
 requires: [test-scenarios]
 ---
@@ -13,11 +14,11 @@ This guide supplements the shared test-scenarios guidance with pytest-specific n
 
 ## Named Test Scenarios
 
-Use pytest parameterized tests with explicit `id` values for related scenarios. Failures must
-identify the scenario without requiring readers to inspect the test implementation.
+Use pytest parameterized tests with explicit `id` values for related scenarios.
 
-Keep a test function or method focused on one meaningful behavior. Use separate tests or classes
-when grouping materially different behaviors would reduce clarity.
+- Ensure failures identify the scenario without requiring readers to inspect the implementation.
+- Keep each test function or method focused on one meaningful behavior.
+- Use separate tests or classes when grouping materially different behaviors would reduce clarity.
 
 Example shape:
 

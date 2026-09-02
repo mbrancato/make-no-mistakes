@@ -3,6 +3,7 @@ id: py-unittest
 title: Python unittest Named Test Scenarios
 summary: Named Python test scenarios with unittest subtests.
 category: language
+render: guide
 language: python-unittest
 requires: [test-scenarios]
 ---
@@ -14,11 +15,11 @@ mechanics.
 
 ## Named Test Scenarios
 
-Use `subTest` with descriptive labels for related scenarios. Failures must identify the scenario
-without requiring readers to inspect the test implementation.
+Use `subTest` with descriptive labels for related scenarios.
 
-Keep a test method focused on one meaningful behavior. Use separate tests or classes when grouping
-materially different behaviors would reduce clarity.
+- Ensure failures identify the scenario without requiring readers to inspect the implementation.
+- Keep each test method focused on one meaningful behavior.
+- Use separate tests or classes when grouping materially different behaviors would reduce clarity.
 
 Example shape:
 

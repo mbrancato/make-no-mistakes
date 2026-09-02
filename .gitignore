@@ -219,4 +219,8 @@ __marimo__/
 # Streamlit
 .streamlit/secrets.toml
 
+/.mcp.json
+/.claude/
+/.codex/
+/.idea/
 /AGENTS.md
